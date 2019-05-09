@@ -25,7 +25,6 @@ hs_err_pid*
 *.idea
 target
 lu-raft-kv
-MyPaxos
 raft-java
 sofa-jraft
 *.DS_Store
