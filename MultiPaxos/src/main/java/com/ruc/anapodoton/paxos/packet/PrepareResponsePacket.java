@@ -2,12 +2,15 @@ package com.ruc.anapodoton.paxos.packet;
 
 import java.io.Serializable;
 
+/**
+ * Prepare阶段收到的响应的内容
+ */
 public class PrepareResponsePacket implements Serializable {
-	private int id;
-	private int instance;
-	private boolean ok;
-	private int ab;
-	private Value av;
+	private int id;//表示哪个节点
+	private int instance;//实例的编号
+	private boolean ok;//标识节点是否响应Proposer
+	private int ab;//means accept ballot,接受的投票编号
+	private Value av;//means accept value,接受的提案的值
 	public PrepareResponsePacket(int id, int instance, boolean ok, int ab, Value av) {
 		super();
 		this.id = id;

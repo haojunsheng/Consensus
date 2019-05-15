@@ -22,7 +22,6 @@ public class ClientTest {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (PaxosClientNullAddressException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}

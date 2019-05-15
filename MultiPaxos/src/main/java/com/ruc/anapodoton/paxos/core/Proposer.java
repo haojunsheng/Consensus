@@ -32,21 +32,21 @@ public class Proposer {
 	enum Proposer_State {
 		READY, PREPARE, ACCEPT, FINISH
 	}
-	//定义一个内部类来保存投票编号,收到的promise
+	//一个实例确定一个值，我们需要有序的确定多个值
 	class Instance {
-		private int ballot;
+		private int ballot;//投票编号
 		// a set for promise receive
-		private Set<Integer> pSet;
+		private Set<Integer> pSet;//收到的所有的承诺
 		// value found after phase 1
-		private Value value;
+		private Value value;//prepare阶段之后，从所有Acceptor的Promise中选定的值
 		// value's ballot
-		private int valueBallot;
+		private int valueBallot;//选定的值对应的投票编号
 		// accept set
-		private Set<Integer> acceptSet;
+		private Set<Integer> acceptSet;//提案被Accept的集合
 		// is wantvalue doneValue
-		private boolean isSucc;
+		private boolean isSucc;//标识提案是否成功
 		// state
-		private Proposer_State state;
+		private Proposer_State state;//提案者目前所处的状态
 
 		public Instance(int ballot, Set<Integer> pSet, Value value, int valueBallot, Set<Integer> acceptSet,
 				boolean isSucc, Proposer_State state) {
@@ -61,10 +61,10 @@ public class Proposer {
 		}
 
 	}
-
+	//
 	private Map<Integer, Instance> instanceState = new HashMap<>();
 
-	// current instance
+	// current instance，一个实例确定一个值，
 	private int currentInstance = 0;
 
 	// proposer's id
@@ -165,23 +165,23 @@ public class Proposer {
 
 	/**
 	 * 处理接收到的packetbean
-	 * 
+	 * 根据消息的类型进行处理
 	 * @param bean
 	 * @throws InterruptedException
 	 */
 	public void recvPacket(PacketBean bean) throws InterruptedException {
 		switch (bean.getType()) {
-		case "PrepareResponsePacket":
+		case "PrepareResponsePacket"://Prepare阶段的响应进行处理
 			PrepareResponsePacket prepareResponsePacket = (PrepareResponsePacket) bean.getData();
 			onPrepareResponse(prepareResponsePacket.getId(), prepareResponsePacket.getInstance(),
 					prepareResponsePacket.isOk(), prepareResponsePacket.getAb(), prepareResponsePacket.getAv());
 			break;
-		case "AcceptResponsePacket":
+		case "AcceptResponsePacket"://Accept阶段的响应的处理
 			AcceptResponsePacket acceptResponsePacket = (AcceptResponsePacket) bean.getData();
 			onAcceptResponce(acceptResponsePacket.getId(), acceptResponsePacket.getInstance(),
 					acceptResponsePacket.isOk());
 			break;
-		case "SubmitPacket":
+		case "SubmitPacket"://把数据写入到磁盘
 			this.submitMsgQueue.add(bean);
 			break;
 		default:
@@ -205,34 +205,37 @@ public class Proposer {
 	}
 
 	/**
-	 * 
-	 * 在prepare操作之前
+	 * 为了优化提案成功的效率，如果我之前的提案被AC了，那么我就是leader，提案不用经过prepare，直接Accept阶段就可以了
 	 */
 	public void beforPrepare() {
-		// 获取accepter最近的一次instance的id
+		// 获取accepter最近的一次instance的id，Acceptor记录一个全局的最大提案编号
 		this.currentInstance = Math.max(this.currentInstance, accepter.getLastInstanceId());
 		this.currentInstance++;
 		Instance instance = new Instance(1, new HashSet<>(), null, 0, new HashSet<>(), false, Proposer_State.READY);
 		this.instanceState.put(this.currentInstance, instance);
+		//上一次的提交是否成功
 		if (this.isLastSumbitSucc == false) {
 			// 执行完整的流程
 			prepare(this.id, this.currentInstance, 1);
 		} else {
-			// multi-paxos 中的优化，直接accept
+			// multi-paxos 中的优化，直接发起accept
 			instance.isSucc = true;
 			accept(this.id, this.currentInstance, 1, this.readyToSubmitQueue.peek());
 		}
 	}
 
 	/**
-	 * 将prepare发送给所有的accepter，并设置超时。 如果超时，则判断阶段1是否完成，如果未完成，则ballot加一之后继续执行阶段一。
-	 * 
+	 * 将prepare发送给所有的accepter，并设置超时。
+	 * 如果超时，则判断阶段1是否完成，如果未完成，则ballot加一之后继续执行阶段一。
+	 *
+	 * 并且封装相应的消息
 	 * @param instance
 	 *            current instance
 	 * @param ballot
 	 *            prepare's ballot
 	 */
 	private void prepare(int id, int instance, int ballot) {
+		//修改当前instance的状态为PREPARE
 		this.instanceState.get(instance).state = Proposer_State.PREPARE;
 		try {
 			PacketBean bean = new PacketBean("PreparePacket", new PreparePacket(id, instance, ballot));
@@ -248,7 +251,6 @@ public class Proposer {
 			e.printStackTrace();
 		}
 		setTimeout(new TimerTask() {
-
 			@Override
 			public void run() {
 				// retry phase 1 again!
@@ -264,9 +266,9 @@ public class Proposer {
 	/**
 	 * 接收到accepter对于prepare的回复
 	 * 
-	 * @param id
-	 * @param instance
-	 * @param ok
+	 * @param peerId 表示哪个节点
+	 * @param instance 实例的编号
+	 * @param ok 是否接受了本次的提案
 	 * @param ab
 	 * @param av
 	 * @throws InterruptedException
@@ -276,12 +278,15 @@ public class Proposer {
 		if (current.state != Proposer_State.PREPARE)
 			return;
 		if (ok) {
+			//保存所有回复的节点的ID
 			current.pSet.add(peerId);
+			//如果提案编号小于Acceptor返回的提案编号，则更新当前提案编号
 			if (ab > current.valueBallot && av != null) {
 				current.valueBallot = ab;
 				current.value = av;
 				current.isSucc = false;
 			}
+			//如果获取到大多数节点的回应，则发起Accept请求
 			if (current.pSet.size() >= this.accepterNum / 2 + 1) {
 				if (current.value == null) {
 					Value object = this.readyToSubmitQueue.peek();
@@ -310,19 +315,17 @@ public class Proposer {
 				try {
 					this.client.sendTo(info.getHost(), info.getPort(), msg);
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			});
 		} catch (IOException e1) {
-			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
 
 		setTimeout(new TimerTask() {
 			@Override
 			public void run() {
-				// retry phase 2 again!
+				// 如果没有被Accept，那么需要重新发起prepare请求
 				Instance current = instanceState.get(instance);
 				if (current.state == Proposer_State.ACCEPT) {
 					current.ballot++;
@@ -334,7 +337,6 @@ public class Proposer {
 
 	/**
 	 * 接收到accepter返回的accept响应
-	 * 
 	 * @param peerId
 	 * @param instance
 	 * @param ok

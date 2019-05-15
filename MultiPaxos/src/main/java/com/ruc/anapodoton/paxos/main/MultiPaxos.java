@@ -88,7 +88,6 @@ public class MultiPaxos {
 	public void setLogLevel(Level level) {
 		this.logger.setLevel(level);
 	}
-	
 	/**
 	 * add handler
 	 * @param handler
@@ -99,8 +98,9 @@ public class MultiPaxos {
 	}
 
 	/**
-	 * 实例化了Accepter，Proposer，Learner
+	 * 一个实例包含Accepter，Proposer，Learner和状态机四个角色
 	 * 同时把groupId分别和executor，accepter，proposer和learner进行绑定
+	 * 相同编号的实例构成一个paxos group
 	 * @param groupId
 	 * @param executor
 	 */
@@ -109,6 +109,7 @@ public class MultiPaxos {
 				this.client);
 		Proposer proposer = new Proposer(infoObject.getId(), confObject.getNodes(), infoObject, confObject.getTimeout(),
 				accepter, groupId, this.client);
+
 		Learner learner = new Learner(infoObject.getId(), confObject.getNodes(), infoObject, confObject, accepter,
 				executor, groupId, this.client);
 		this.groupidToCallback.put(groupId, executor);

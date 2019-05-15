@@ -2,6 +2,9 @@ package com.ruc.anapodoton.paxos.packet;
 
 import java.io.Serializable;
 
+/**
+ * Accept阶段收到的响应的内容
+ */
 public class AcceptResponsePacket implements Serializable {
 	private int id;
 	private int instance;
@@ -30,5 +33,4 @@ public class AcceptResponsePacket implements Serializable {
 	public void setOk(boolean ok) {
 		this.ok = ok;
 	}
-	
 }

@@ -233,7 +233,7 @@ public class Accepter {
 
 	/**
 	 * proposer从这获取最近的instance的id
-	 * 
+	 * Acceptor记录一个全局的最大提案编号
 	 * @return
 	 */
 	public int getLastInstanceId() {
